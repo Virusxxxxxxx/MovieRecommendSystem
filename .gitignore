@@ -1,0 +1,4 @@
+# Project exclude paths
+/recommender/DataLoader/target/
+/recommender/OfflineRecommenderWithLFM/target/
+/recommender/StatisticsRecommender/target/
