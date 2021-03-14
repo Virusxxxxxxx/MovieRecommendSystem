@@ -106,6 +106,7 @@ object OfflineRecommenderWithLFM {
                         (a._1, (b._1, simScore)) //(movieA, (movieB, score))
                     }
                 }
+                //这部filter可以放到SteamingRecommender中的computeMovieScore函数中来过滤simScore
                 .filter(_._2._2 > 0.6) //过滤出相似度评分大于0.6的
                 .groupByKey() //(movieA, ((movieB, score),(movieC, score),...))
                 .map { //封装成MovieRecs
