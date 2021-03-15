@@ -64,8 +64,9 @@ object StreamingRecommender {
                 .load()
                 .as[MovieRecs]
                 .rdd
-                .map { //为了查询相似度方便，转成map，通过key即可得到value
+                .map {
                     movieRecs =>
+                        //(collectAsMap)为了查询相似度方便，转成Map类型，通过key即可得到value
                         //注：这里不能直接recs.toMap, 因为后面是Seq类型，直接toMap会出错
                         (movieRecs.mid, movieRecs.recs.map(x => (x.mid, x.score)).toMap)
                 }.collectAsMap()
@@ -92,7 +93,7 @@ object StreamingRecommender {
             ConsumerStrategies.Subscribe[String, String](Array(config("kafka.topic")), kafkaParam)
         )
 
-        //把原始数据(UID|MID|SCORE|TIMESTAMP)转换成评分流
+        //把实时原始数据(UID|MID|SCORE|TIMESTAMP)转换成评分流
         val ratingStream = kafkaDStream.map {
             msg =>
                 val attr = msg.value().split("\\|")
@@ -128,15 +129,13 @@ object StreamingRecommender {
     }
 
     //redis返回的是Java类，为了用map操作引入JavaConversions
-
     import scala.collection.JavaConversions._
-
-    //从Redis读用户最近的K次评分
+    //从Redis读用户最近的K次评分 => 得到(mid, score) => 图中竖着的那列
     def getUserRecentlyRating(num: Int, uid: Int, jedis: Jedis): Array[(Int, Double)] = {
-        //用户评分数据保存在 uid:[UID] 为key的队列里，value是MID:SCORE
+        //在Redis中, 用户评分数据保存在 uid:[UID] 为key的队列里，value是MID:SCORE
         //keys * -- 查看所有key
         //lrange [key] [start] [end] -- 查看key的从start到end的value
-        jedis.lrange("uid:" + uid, 0, num - 1)
+        jedis.lrange("uid:" + uid, 0, num - 1)  //注: 这里的类型本来是Java里的List, 隐式转换成Scala的
                 .map {
                     item =>
                         val attr = item.split("\\:") //MID:SCORE  \\是否多余?
@@ -145,15 +144,15 @@ object StreamingRecommender {
 
     }
 
+
     /**
-     * 从相似度矩阵中,获取和当前电影最相似的num个电影，作为推荐备选列表
-     *
      * @param num       相似电影数量
      * @param mid       当前电影ID
      * @param uid       当前评分用户ID
      * @param simMovies 相似度矩阵（广播变量）
      * @return 过滤掉已评过分的备选电影列表
      */
+    //从相似度矩阵中,获取和当前电影最相似的num个电影，作为推荐备选列表 => 得到(mid, score) => 图中横着的那行
     def getTopSimMovies(num: Int, mid: Int, uid: Int,
                         simMovies: scala.collection.Map[Int, scala.collection.immutable.Map[Int, Double]])
                        (implicit mongoConfig: MongoConfig): Array[Int] = {
@@ -169,7 +168,7 @@ object StreamingRecommender {
                     item => item.get("mid").toString.toInt //只需要看过电影的mid
                 }
 
-        //step3: 把看过的电影过滤，得到最终推荐列表
+        //step3: 把看过的电影过滤，得到备选电影推荐列表
         allSimMovies.filter(x => !ratingExist.contains(x._1))
                 .sortWith(_._2 > _._2)
                 .take(num)
@@ -187,13 +186,12 @@ object StreamingRecommender {
         val increMap = scala.collection.mutable.HashMap[Int, Int]()
         val decreMap = scala.collection.mutable.HashMap[Int, Int]()
 
-        //分子部分
+        //公式分子部分
         for (candidateMovie <- candidateMovies; userRecentlyRating <- UserRecentlyRatings) {
             //备选电影和最近评分电影的相似度, 公式中的sim(q,r)
             val simScore = getMoviesSimScore(candidateMovie, userRecentlyRating._1, simMovies)
-            //过滤掉电影相似度列表中备选电影和最近评分电影的相似度不存在的电影
-            //if(simScore > 0.6)
-            if (simScore != 0.0) {
+            //二次过滤，见OfflineRecommenderWithLFM的108行
+            if(simScore > 0.6) {
                 //计算备选电影的基础推荐得分
                 //这里暂时先把sim(q,r)×R_r放在score里, 后面再做求和取平均操作
                 //这里实际得到(movie_q, sim(q,r)×R_r), 每个q有多个r, 后面以q为key做groupby,求sum再除数量即可
@@ -210,10 +208,10 @@ object StreamingRecommender {
         scores.groupBy(_._1).map{
             //得到Map(mid -> ArrayBuffer[(mid, score)])
             case(mid, scoreList) =>
-                (mid, scoreList.map(_._2).sum / scoreList.length
+                (mid, scoreList.map(_._2).sum / scoreList.length    //∑操作 和 ÷sim_count
                         + log(increMap.getOrDefault(mid, 1))
                         - log(decreMap.getOrDefault(mid, 1)))
-        }.toArray.sortWith(_._2 > _._2)
+        }.toArray.sortWith(_._2 > _._2)     //最终推荐强度排序
 
 
     }
@@ -244,9 +242,9 @@ object StreamingRecommender {
 
         //如果uid已存在，则删除
         //这里不能用overwrite来覆写
-        // 原因：MongoDB中不是按uid来标识文档，而是自动生成的[_id]，来一个相同的uid，MongoDB不会识别
+        // 原因：MongoDB中不是按uid来标识文档，其主键是自动生成的[_id]，来一个相同的uid，MongoDB不会识别
         streamRecsCollection.findAndRemove(MongoDBObject("uid" -> uid))
-        //将StreamRecs存入表中
+        //将StreamRecs存入表中, (uid, ((mid, score),(mid, score),...))
         streamRecsCollection.insert(MongoDBObject("uid" -> uid,
             "recs" -> streamRecs.map(x => MongoDBObject("mid" -> x._1, "score" -> x._2))))
     }

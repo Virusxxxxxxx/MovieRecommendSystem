@@ -17,6 +17,7 @@
         <module>StatisticsRecommender</module>
         <module>OfflineRecommenderWithLFM</module>
         <module>StreamingRecommender</module>
+        <module>ContentRecommender</module>
     </modules>
 
     <dependencyManagement>

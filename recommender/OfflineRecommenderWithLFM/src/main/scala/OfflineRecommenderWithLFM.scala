@@ -57,20 +57,18 @@ object OfflineRecommenderWithLFM {
         val movieRDD = ratingRDD.map(_._2).distinct()
 
         //ALS训练隐语义模型
-        /*
-        *   ALS第一个参数是Rating类型，所以这里先转换类型
-        *   Rating(uid, mid, score)
-        * */
-        val trainData = ratingRDD.map(item => Rating(item._1, item._2, item._3))
+        //ALS第一个参数是Rating类型，所以这里先转换类型
+        val trainData = ratingRDD.map(item => Rating(item._1, item._2, item._3))    //Rating(uid, mid, score)
         val (rank, iterations, lambda) = (200, 5, 0.1) //ALS参数: 维度，迭代次数，正则项
-        val model = ALS.train(trainData, rank, iterations, lambda)
+        val model = ALS.train(trainData, rank, iterations, lambda)  //调库, 使用Rating表中的数据训练模型
 
-        //基于用户和电影的隐特征，计算预测评分，得到用户推荐列表
+        // 得到模型后，即得到基于用户和电影的隐特征，即可预测用户未评分的电影的评分
         // step1: user和movie进行笛卡尔积，得到空的评分矩阵
         val matrix = userRDD.cartesian(movieRDD)
         // step2: 预测评分
         val preRatings = model.predict(matrix)
-        // step3: 处理结果,得到用户推荐列表
+        // step3: 处理结果,得到预测结果
+        //将预测结果降序排序，即相当于得到用户的推荐列表(或许这里应该把已看过的去掉？)
         val userRecs = preRatings
                 .filter(_.rating > 0) //过滤评分大于0
                 .map(item => (item.user, (item.product, item.rating))) //groupby预处理
@@ -87,7 +85,7 @@ object OfflineRecommenderWithLFM {
         // step4: 写入mongo
         storeRecsInMongoDB(userRecs, USER_RECS)
 
-        //基于电影隐特征，计算相似度矩阵，得到电影的相似度列表
+        // 基于电影隐特征，计算相似度矩阵，得到电影的相似度列表
         // step1: 得到电影特征
         val movieFeatures = model.productFeatures.map {
             //把电影的特征放入DoubleMatrix，以便调用jblas计算余弦相似度
@@ -96,7 +94,7 @@ object OfflineRecommenderWithLFM {
         //step2: 对所有电影两两计算相似度
         val movieRecs = movieFeatures.cartesian(movieFeatures) //笛卡尔积
                 .filter {
-                    //过滤掉自身, _1 = mid
+                    //过滤掉自身, 因为自己和自己做相似度必定是1, 其中_1 = mid
                     case (movie_a, movie_b) => movie_a._1 != movie_b._1
                 }
                 .map {
@@ -106,7 +104,7 @@ object OfflineRecommenderWithLFM {
                         (a._1, (b._1, simScore)) //(movieA, (movieB, score))
                     }
                 }
-                //这部filter可以放到SteamingRecommender中的computeMovieScore函数中来过滤simScore
+                //这里filter可以放到SteamingRecommender中的computeMovieScore函数中来过滤simScore
                 .filter(_._2._2 > 0.6) //过滤出相似度评分大于0.6的
                 .groupByKey() //(movieA, ((movieB, score),(movieC, score),...))
                 .map { //封装成MovieRecs
