@@ -124,7 +124,7 @@ object StreamingRecommender {
         ssc.start()
         println(">>>>>>>>>>>>>>>>>>>>>>> streaming started >>>>>>>>>>>>>>>>>>>>>>>")
 
-        spark.close()
+        ssc.awaitTermination()
     }
 
     //redis返回的是Java类，为了用map操作引入JavaConversions
