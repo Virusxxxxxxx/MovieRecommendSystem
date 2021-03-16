@@ -46,7 +46,8 @@ object ContentRecommender {
                 .as[Movie]
                 .map(
                     // 提取mid, name, genres作为内容特征
-                    // 分词器默认按空格做分词，因此这里把原始的|分割转成空格
+                    // 分词器默认按空格做分词，因此这里把genres中原始的按|分割转成按空格分割
+                    // [Drama|Horror|Thriller] => [Drama Horror Thriller]
                     // 后面做影评分解，在这里加一项影评
                     x => (x.mid, x.name, x.genres.map(g => if (g == '|') ' ' else g))
                 )
@@ -92,6 +93,8 @@ object ContentRecommender {
 //        movieFeatures.collect().foreach(println)
 
         // (后面全是复制Offline里的)对所有电影两两计算相似度
+        // 这里的movieFeatures相当于是把标签hash散列后再TD-IDF的标签权值作为特征
+        // 而Offline里的movieFeatures则是通过隐语义模型得到的隐特征
         val movieRecs = movieFeatures.cartesian(movieFeatures) //笛卡尔积
                 .filter {
                     //过滤掉自身, 因为自己和自己做相似度必定是1, 其中_1 = mid
@@ -101,7 +104,7 @@ object ContentRecommender {
                     case (a, b) => {
                         //计算电影a和电影b的余弦相似度
                         val simScore = this.consinSim(a._2, b._2)
-                        (a._1, (b._1, simScore)) //(movieA, (movieB, score))
+                        (a._1, (b._1, simScore)) //(movieA, (movieB, simScore))
                     }
                 }
                 //这里filter可以放到SteamingRecommender中的computeMovieScore函数中来过滤simScore
