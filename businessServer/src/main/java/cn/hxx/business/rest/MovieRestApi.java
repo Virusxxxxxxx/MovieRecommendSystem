@@ -51,6 +51,7 @@ public class MovieRestApi {
         List<Recommendation> recommendations = recommenderService.getHybridRecommendations(new MovieHybridRecommendationRequest(user.getUid(),num));
         if(recommendations.size()==0){
             String randomGenres = user.getPrefGenres().get(new Random().nextInt(user.getPrefGenres().size()));
+            System.out.println(randomGenres);
             recommendations = recommenderService.getTopGenresRecommendations(new TopGenresRecommendationRequest(randomGenres.split(" ")[0],num));
         }
         model.addAttribute("success",true);

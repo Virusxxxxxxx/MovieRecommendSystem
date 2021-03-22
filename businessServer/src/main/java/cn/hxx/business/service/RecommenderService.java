@@ -71,6 +71,7 @@ public class RecommenderService {
             return recommendations;
         //TODO BUG未解决
         ArrayList<Document> recs = document.get("recs", ArrayList.class);
+        System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" + recs);
         for (Document recDoc : recs) {
             recommendations.add(new Recommendation(recDoc.getInteger("mid"), recDoc.getDouble("score")));
         }
