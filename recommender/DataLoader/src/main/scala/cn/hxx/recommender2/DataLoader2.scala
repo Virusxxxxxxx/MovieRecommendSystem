@@ -1,11 +1,11 @@
-package cn.hxx.recommender
+package cn.hxx.recommender2
 
 import java.net.InetAddress
 
 import com.mongodb.casbah.commons.MongoDBObject
 import com.mongodb.casbah.{MongoClient, MongoClientURI}
-import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest
@@ -13,15 +13,16 @@ import org.elasticsearch.common.settings.Settings
 import org.elasticsearch.common.transport.InetSocketTransportAddress
 import org.elasticsearch.transport.client.PreBuiltTransportClient
 
-/* 三个数据集的样例类 */
+/* 四个数据集的样例类 */
+//豆瓣电影数据集
 case class Movie(mid: Int, name: String, descri: String, timelong: String, issue: String,
                  year: String, language: String, genres: String, actors: String, directors: String)
 
-case class Rating(uid: Int, mid: Int, score: Double, timestamp: String)
+case class Rating(uid: String, mid: Int, score: Double, timestamp: String)
 
-//case class Tag(uid: Int, mid: Int, tag: String, timestamp: Int)
+case class Tag(mid: Int, tag: String)
 
-case class Comment(uid: Int, mid: Int, content: String, timestamp: String)
+case class Comment(uid: String, mid: Int, content: String, timestamp: String)
 
 /**
  *
@@ -39,7 +40,7 @@ case class MongoConfig(uri: String, db: String)
  */
 case class ESConfig(httpHosts: String, transportHosts: String, index: String, clustername: String)
 
-object DataLoader {
+object DataLoader2 {
 
     //定义常量
     val MOVIE_DATA_PATH = "D:\\Scala_workspace\\MovieRecommendSystem\\recommender\\DataLoader\\src\\main\\resources\\douban\\movies.csv"
@@ -48,7 +49,8 @@ object DataLoader {
 
     val MONGODB_MOVIE_COLLECTION = "Movie"
     val MONGODB_RATING_COLLECTION = "Rating"
-    val MONGODB_TAG_COLLECTION = "Comment"
+    val MONGODB_TAG_COLLECTION = "Tag"
+    val MONGODB_COMMENT_COLLECTION = "Comment"
     val ES_MOVIE_INDEX = "Movie"
 
     def main(args: Array[String]): Unit = {
@@ -71,57 +73,103 @@ object DataLoader {
 
 
         /*RDD => DataFrame*/
+        //case class Movie(mid: Int, name: String, descri: String, timelong: String, issue: String,
+        //                 year: Int, language: String, genres: String, actors: String, directors: String)
         val movieRDD = spark.sparkContext.textFile(MOVIE_DATA_PATH)
-        val movieDF = movieRDD.map(
-            items => {
-                val attributes = items.split(",")
-                //case class Movie(mid: Int, name: String, descri: String, timelong: String, issue: String,
-                //                 year: String, language: String, genres: String, actors: String, directors: String)
-                Movie(attributes(0).toInt, attributes(1).trim, attributes(16).trim, attributes(11).trim, attributes(10).trim, attributes(18).trim, attributes(9).trim, attributes(6).trim, attributes(19).trim, attributes(20).trim)
-            }
-        ).toDF()
+        val header1 = movieRDD.first()
+        val movieDF = movieRDD.filter(row => row != header1) //过滤掉第一行
+                .map(
+                    items => {
+                        val attributes = items.split(",").map {  // 每个数据都自带" ", 所以做个过滤
+                            str =>
+                                    if(str.length > 2){
+                                        val end = str.length - 1
+                                        str.substring(1, end)
+                                    }
+                                    else ""
 
+                        }
+                        Movie(attributes(0).toInt, attributes(1).trim, attributes(16).trim, attributes(11).trim, attributes(14).trim, attributes(18).trim, attributes(10).trim, attributes(8).trim, attributes(3).trim, attributes(5).trim)
+                    }
+                ).toDF()
+        movieDF.rdd.take(10).foreach(println)
+        //case class Rating(uid: String, mid: Int, score: Double, timestamp: String)
         val ratingRDD = spark.sparkContext.textFile(RATING_DATA_PATH)
-        val ratingDF = ratingRDD.map(
-            items => {
-                val attributes = items.split(",")
-                Rating(attributes(1).toInt, attributes(2).toInt, attributes(3).toDouble, attributes(4).trim)
-            }
-        ).toDF()
+        val header2 = ratingRDD.first()
+        val ratingDF = ratingRDD.filter(row => row != header2)
+                .map(
+                    items => {
+                        val attributes = items.split(",").map {
+                            str =>
+                                if(str.length > 2){
+                                    val end = str.length - 1
+                                    str.substring(1, end)
+                                }
+                                else ""
+                        }
+                        Rating(attributes(1).trim, attributes(2).toInt, attributes(3)(0).toDouble, attributes(4).trim)
+                    }
+                ).toDF()
 
+        //case class Comment(uid: String, mid: Int, content: String, timestamp: String)
         val commentRDD = spark.sparkContext.textFile(COMMENTS_DATA_PATH)
-        //case class Comment(uid: String, mid: String, content: String, timestamp: String)
-        val commentDF = commentRDD.map(
-            items => {
-                val attributes = items.split(",")
-                Comment(attributes(1).toInt, attributes(2).toInt, attributes(3).trim, attributes(5).trim)
-            }
-        ).toDF()
+        val header3 = commentRDD.first()
+        val commentDF = commentRDD.filter(row => row != header3).filter(_.split(",").length == 14)
+                .map(
+                    items => {
+                        val attributes = items.split(",").map {
+                            str =>
+                                if(str.length > 2){
+                                    val end = str.length - 1
+                                    str.substring(1, end)
+                                }
+                                else ""
+                        }
+                        Comment(attributes(13).trim, attributes(4).toInt, attributes(1).trim, attributes(0).trim)
+                    }
+                ).toDF()
+
+        //case class Tag(mid: Int, tag: String)
+        val tagRDD = spark.sparkContext.textFile(MOVIE_DATA_PATH)
+        val header4 = tagRDD.first()
+        val tagDF = tagRDD.filter(row => row != header4)
+                .map(
+                    items => {
+                        val attributes = items.split(",").map {
+                            str =>
+                                if(str.length > 2){
+                                    val end = str.length - 1
+                                    str.substring(1, end)
+                                }
+                                else ""
+                        }
+                        Tag(attributes(0).toInt, attributes(17).trim)
+                    }
+                ).toDF()
 
 
         //封装MongoDB配置，隐式转换   TODO ****这里不懂
         implicit val mongoConfig = MongoConfig(config("mongo.uri"), config("mongo.db"))
 
         //将数据保存到MongoDB
-        storeDataInMongoDB(movieDF, ratingDF, commentDF)
+        storeDataInMongoDB(movieDF, ratingDF, tagDF, commentDF)
 
-        //****************************************************************************************************************
         //(es)数据预处理,把movie对应的tag信息添加进去
         /**
          * mid, tags
-         * 其中tags => tag1|tag2|tag3..
+         * 其中tags => tag1/tag2/tag3..
          */
-        import org.apache.spark.sql.functions._
-        val newTag = commentDF.groupBy($"mid")
-                .agg(concat_ws("|", collect_set($"tag")).as("tags"))
-                .select("mid", "tags")
-
-        //newTag和movie做左外连接，相同属性列mid
-        val movieWithTagsDF = movieDF.join(newTag, Seq("mid"), "left")
+//        import org.apache.spark.sql.functions._
+//        val newTag = tagDF.groupBy($"mid")
+//                .agg(concat_ws("/", collect_set($"tag")).as("tags"))
+//                .select("mid", "tags")
+//
+//        //newTag和movie做左外连接，相同属性列mid
+//        val movieWithTagsDF = movieDF.join(newTag, Seq("mid"), "left")
 
         //将数据保存到ES
         implicit val esConfig = ESConfig(config("es.httpHosts"), config("es.transportHosts"), config("es.index"), config("es.cluster.name"))
-        storeDataInES(movieWithTagsDF)
+        storeDataInES(tagDF)
 
         //关闭Spark连接
         spark.stop()
@@ -129,7 +177,7 @@ object DataLoader {
 
 
     //写入MongoDB函数
-    def storeDataInMongoDB(movieDF: DataFrame, ratingDF: DataFrame, tagDF: DataFrame)(implicit mongoConfig: MongoConfig): Unit = {
+    def storeDataInMongoDB(movieDF: DataFrame, ratingDF: DataFrame, tagDF: DataFrame, commentDF: DataFrame)(implicit mongoConfig: MongoConfig): Unit = {
         //新建mongodb连接
         val mongoClient = MongoClient(MongoClientURI(mongoConfig.uri))
 
@@ -137,6 +185,7 @@ object DataLoader {
         mongoClient(mongoConfig.db)(MONGODB_MOVIE_COLLECTION).dropCollection()
         mongoClient(mongoConfig.db)(MONGODB_RATING_COLLECTION).dropCollection()
         mongoClient(mongoConfig.db)(MONGODB_TAG_COLLECTION).dropCollection()
+        mongoClient(mongoConfig.db)(MONGODB_COMMENT_COLLECTION).dropCollection()
 
         //把movieDF写入表中 - write.save()方法
         movieDF.write
@@ -162,10 +211,19 @@ object DataLoader {
                 .format("com.mongodb.spark.sql")
                 .save()
 
+        //把CommentDF写入表中
+        commentDF.write
+                .option("uri", mongoConfig.uri)
+                .option("collection", MONGODB_COMMENT_COLLECTION)
+                .mode("overwrite")
+                .format("com.mongodb.spark.sql")
+                .save()
+
         //建立索引
         mongoClient(mongoConfig.db)(MONGODB_MOVIE_COLLECTION).createIndex(MongoDBObject("mid" -> 1))
         mongoClient(mongoConfig.db)(MONGODB_RATING_COLLECTION).createIndex(MongoDBObject("uid" -> 1))
         mongoClient(mongoConfig.db)(MONGODB_RATING_COLLECTION).createIndex(MongoDBObject("mid" -> 1))
+        mongoClient(mongoConfig.db)(MONGODB_COMMENT_COLLECTION).createIndex(MongoDBObject("uid" -> 1))
         mongoClient(mongoConfig.db)(MONGODB_TAG_COLLECTION).createIndex(MongoDBObject("uid" -> 1))
         mongoClient(mongoConfig.db)(MONGODB_TAG_COLLECTION).createIndex(MongoDBObject("mid" -> 1))
 
