@@ -1,3 +1,5 @@
+package cn.hxx.StatisticsRecommender
+
 import java.text.SimpleDateFormat
 import java.util.Date
 
@@ -20,8 +22,8 @@ case class GenresRecommendation(genres: String, recs: Seq[Recommendation])
 //离线统计推荐
 object StatisticsRecommender {
     //定义表名 - 读
-    val MONGODB_MOVIE_COLLECTION = "Movie"
-    val MONGODB_RATING_COLLECTION = "Rating"
+    val MONGODB_MOVIE_COLLECTION = "cn.hxx.StatisticsRecommender.Movie"
+    val MONGODB_RATING_COLLECTION = "cn.hxx.StatisticsRecommender.Rating"
 
     //定义表名 - 统计结果写入
     val RATE_MORE_MOVIES = "RateMoreMovies" //历史热门电影统计
@@ -38,7 +40,7 @@ object StatisticsRecommender {
         )
 
         //sparkConf
-        val sparkConf = new SparkConf().setMaster(config("spark.cores")).setAppName("StatisticsRecommender")
+        val sparkConf = new SparkConf().setMaster(config("spark.cores")).setAppName("cn.hxx.StatisticsRecommender.StatisticsRecommender")
         val spark = SparkSession.builder().config(sparkConf).getOrCreate()
         import spark.implicits._
         implicit val mongoConfig = MongoConfig(config("mongo.uri"), config("mongo.db"))
@@ -128,8 +130,8 @@ object StatisticsRecommender {
                 .map { //step5: genre内按avg来sort, 然后take前十
                     /**
                      * 这里用上面定义的样例类来封装数据
-                     * GenresRecommendation(genre, res) 第二项是Recommendation类型
-                     * Recommendation(mid, avg)
+                     * cn.hxx.StatisticsRecommender.GenresRecommendation(genre, res) 第二项是Recommendation类型
+                     * cn.hxx.StatisticsRecommender.Recommendation(mid, avg)
                      */
                     case (genre, mid_avg) =>
                         GenresRecommendation(

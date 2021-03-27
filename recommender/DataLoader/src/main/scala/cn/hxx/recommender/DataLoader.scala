@@ -2,8 +2,6 @@ package cn.hxx.recommender
 
 import java.net.InetAddress
 
-import cn.hxx.recommender2
-import cn.hxx.recommender2.{Movie, Rating, Tag}
 import com.mongodb.casbah.commons.MongoDBObject
 import com.mongodb.casbah.{MongoClient, MongoClientURI}
 import org.apache.spark.sql.{DataFrame, SparkSession}
@@ -95,7 +93,7 @@ object DataLoader  {
 
 
         //封装MongoDB配置，隐式转换   TODO ****这里不懂
-        implicit val mongoConfig = recommender2.MongoConfig(config("mongo.uri"),config("mongo.db"))
+        implicit val mongoConfig = MongoConfig(config("mongo.uri"),config("mongo.db"))
 
         //将数据保存到MongoDB
         storeDataInMongoDB(movieDF, ratingDF, tagDF)
@@ -114,7 +112,7 @@ object DataLoader  {
         val movieWithTagsDF = movieDF.join(newTag, Seq("mid"), "left")
 
         //将数据保存到ES
-        implicit val esConfig = recommender2.ESConfig(config("es.httpHosts"), config("es.transportHosts"), config("es.index"), config("es.cluster.name"))
+        implicit val esConfig = ESConfig(config("es.httpHosts"), config("es.transportHosts"), config("es.index"), config("es.cluster.name"))
         storeDataInES(movieWithTagsDF)
 
         //关闭Spark连接
@@ -123,7 +121,7 @@ object DataLoader  {
 
 
     //写入MongoDB函数
-    def storeDataInMongoDB(movieDF:DataFrame, ratingDF:DataFrame, tagDF:DataFrame)(implicit mongoConfig: recommender2.MongoConfig): Unit ={
+    def storeDataInMongoDB(movieDF:DataFrame, ratingDF:DataFrame, tagDF:DataFrame)(implicit mongoConfig: MongoConfig): Unit ={
         //新建mongodb连接
         val mongoClient = MongoClient(MongoClientURI(mongoConfig.uri))
 
@@ -176,7 +174,7 @@ object DataLoader  {
      *    2. curl "myCent:9200/recommender/_search?pretty" -d'{"query":{"bool":{"must":{"exists":{"field":"tags"}}}}}'
      *    3. "hits"里的total是结果数
      */
-    def storeDataInES(movieWithTagsDF: DataFrame)(implicit eSConfig: recommender2.ESConfig) : Unit ={
+    def storeDataInES(movieWithTagsDF: DataFrame)(implicit eSConfig: ESConfig) : Unit ={
         //新建es配置
         val settings:Settings = Settings.builder()
                 .put("cluster.name",eSConfig.clustername)

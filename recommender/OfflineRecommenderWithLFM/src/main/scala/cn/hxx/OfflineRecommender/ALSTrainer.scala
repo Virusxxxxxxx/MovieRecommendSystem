@@ -1,5 +1,7 @@
-import OfflineRecommenderWithLFM.MONGODB_RATING_COLLECTION
+package cn.hxx.OfflineRecommender
+
 import breeze.numerics.sqrt
+import cn.hxx.OfflineRecommender.OfflineRecommenderWithLFM.MONGODB_RATING_COLLECTION
 import org.apache.spark.SparkConf
 import org.apache.spark.mllib.recommendation.{ALS, MatrixFactorizationModel, Rating}
 import org.apache.spark.rdd.RDD

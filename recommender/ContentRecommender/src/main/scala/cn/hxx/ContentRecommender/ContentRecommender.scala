@@ -1,3 +1,5 @@
+package cn.hxx.ContentRecommender
+
 import org.apache.spark.SparkConf
 import org.apache.spark.ml.feature.{HashingTF, IDF, Tokenizer}
 import org.apache.spark.ml.linalg.SparseVector

@@ -18,11 +18,11 @@ import org.elasticsearch.transport.client.PreBuiltTransportClient
 case class Movie(mid: Int, name: String, descri: String, timelong: String, issue: String,
                  year: String, language: String, genres: String, actors: String, directors: String)
 
-case class Rating(uid: String, mid: Int, score: Double, timestamp: String)
+case class Rating(uid: Int, mid: Int, score: Double, timestamp: String)
 
 case class Tag(mid: Int, tag: String)
 
-case class Comment(uid: String, mid: Int, content: String, timestamp: String)
+case class Comment(uid: Int, mid: Int, content: String, timestamp: String)
 
 /**
  *
@@ -44,7 +44,6 @@ object DataLoader2 {
 
     //定义常量
     val MOVIE_DATA_PATH = "D:\\Scala_workspace\\MovieRecommendSystem\\recommender\\DataLoader\\src\\main\\resources\\douban\\movies.csv"
-    val RATING_DATA_PATH = "D:\\Scala_workspace\\MovieRecommendSystem\\recommender\\DataLoader\\src\\main\\resources\\douban\\ratings.csv"
     val COMMENTS_DATA_PATH = "D:\\Scala_workspace\\MovieRecommendSystem\\recommender\\DataLoader\\src\\main\\resources\\douban\\comments.csv"
 
     val MONGODB_MOVIE_COLLECTION = "Movie"
@@ -66,7 +65,7 @@ object DataLoader2 {
         )
 
         // 建立Spark连接
-        val sparkConf = new SparkConf().setMaster(config("spark-cores")).setAppName("DataLoader")
+        val sparkConf = new SparkConf().setMaster(config("spark-cores")).setAppName("DataLoader2")
         val spark = SparkSession.builder().config(sparkConf).getOrCreate()
 
         import spark.implicits._
@@ -94,9 +93,21 @@ object DataLoader2 {
                 ).toDF()
         movieDF.rdd.take(10).foreach(println)
         //case class Rating(uid: String, mid: Int, score: Double, timestamp: String)
-        val ratingRDD = spark.sparkContext.textFile(RATING_DATA_PATH)
+        val ratingRDD = spark.sparkContext.textFile(COMMENTS_DATA_PATH)
         val header2 = ratingRDD.first()
-        val ratingDF = ratingRDD.filter(row => row != header2)
+        val ratingDF = ratingRDD.filter(row => row != header2) //过滤掉第一行
+                .filter{
+                    items =>
+                        val attributes = items.split(",").map {
+                            str =>
+                                if(str.length > 2){
+                                    val end = str.length - 1
+                                    str.substring(1, end)
+                                }
+                                else ""
+                        }
+                        attributes.length == 14 && attributes(9) != ""
+                }
                 .map(
                     items => {
                         val attributes = items.split(",").map {
@@ -107,7 +118,7 @@ object DataLoader2 {
                                 }
                                 else ""
                         }
-                        Rating(attributes(1).trim, attributes(2).toInt, attributes(3)(0).toDouble, attributes(4).trim)
+                        Rating(attributes(8).toInt, attributes(4).toInt, attributes(9).toDouble, attributes(0).trim)
                     }
                 ).toDF()
 
@@ -125,7 +136,7 @@ object DataLoader2 {
                                 }
                                 else ""
                         }
-                        Comment(attributes(13).trim, attributes(4).toInt, attributes(1).trim, attributes(0).trim)
+                        Comment(attributes(8).toInt, attributes(4).toInt, attributes(1).trim, attributes(0).trim)
                     }
                 ).toDF()
 
