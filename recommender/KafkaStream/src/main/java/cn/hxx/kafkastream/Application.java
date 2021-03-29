@@ -13,7 +13,8 @@ public class Application {
 
         // 输入和输出的topic
         String from = "log";
-        String to = "recommender";
+        //***************************此处修改数据库
+        String to = "recommender2";
 
         // 定义kafka streaming的配置
         Properties settings = new Properties();

@@ -4,7 +4,8 @@ public class Constant {
 
     //************** FOR MONGODB ****************
 
-    public static String MONGODB_DATABASE = "recommender";
+    //此处修改数据库名
+    public static String MONGODB_DATABASE = "recommender2";
 
     public static String MONGODB_USER_COLLECTION= "User";
 
@@ -30,7 +31,8 @@ public class Constant {
 
     //************** FOR ELEASTICSEARCH ****************
 
-    public static String ES_INDEX = "recommender";
+    //此处修改es
+    public static String ES_INDEX = "recommender2";
 
     public static String ES_MOVIE_TYPE = "Movie";
 

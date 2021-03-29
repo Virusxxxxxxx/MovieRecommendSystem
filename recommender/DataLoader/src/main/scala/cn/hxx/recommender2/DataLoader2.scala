@@ -15,8 +15,8 @@ import org.elasticsearch.transport.client.PreBuiltTransportClient
 
 /* 四个数据集的样例类 */
 //豆瓣电影数据集
-case class Movie(mid: Int, name: String, descri: String, timelong: String, issue: String,
-                 year: String, language: String, genres: String, actors: String, directors: String)
+case class Movie(mid: Int, name: String, descri: String, timelong: Double, issue: String,
+                 year: Double, language: String, genres: String, actors: String, directors: String)
 
 case class Rating(uid: Int, mid: Int, score: Double, timestamp: String)
 
@@ -79,18 +79,25 @@ object DataLoader2 {
         val movieDF = movieRDD.filter(row => row != header1) //过滤掉第一行
                 .map(
                     items => {
-                        val attributes = items.split(",").map {  // 每个数据都自带" ", 所以做个过滤
+                        items.split(",(?=([^\\\"]*\\\"[^\\\"]*\\\")*[^\\\"]*$)",-1).map {  //双引号内的逗号不分割  双引号外的逗号进行分割
                             str =>
-                                    if(str.length > 2){
+                                    if(str.length > 2){// 每个数据都自带" ", 所以做个过滤
                                         val end = str.length - 1
                                         str.substring(1, end)
                                     }
                                     else ""
 
                         }
-                        Movie(attributes(0).toInt, attributes(1).trim, attributes(16).trim, attributes(11).trim, attributes(14).trim, attributes(18).trim, attributes(10).trim, attributes(8).trim, attributes(3).trim, attributes(5).trim)
                     }
-                ).toDF()
+                )
+                .filter{    //过滤掉未上映的电影和时长为0的电影
+                    items =>
+                        items(11) != "0.0" && items(18).toDouble.toInt <= 2021
+                }
+                .map{
+                    attributes =>
+                        Movie(attributes(0).toInt, attributes(1).trim, attributes(16).trim, attributes(11).toDouble, attributes(14).trim, attributes(18).toDouble, attributes(10).trim, attributes(8).trim, attributes(3).trim, attributes(5).trim)
+                }.toDF()
         movieDF.rdd.take(10).foreach(println)
         //case class Rating(uid: String, mid: Int, score: Double, timestamp: String)
         val ratingRDD = spark.sparkContext.textFile(COMMENTS_DATA_PATH)
