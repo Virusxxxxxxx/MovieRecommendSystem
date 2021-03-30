@@ -31,7 +31,7 @@ object ConnHelper extends Serializable {
 }
 
 
-object StreamingRecommender {
+object StreamingRecommender2 {
     val MAX_USER_RATINGS_NUM = 20 //选取用户的K次历史评分 K = 20
     val MAX_SIM_MOVIES_NUM = 20 //备选推荐电影数 K = 20
     val MONGODB_STREAM_RECS_COLLECTION = "StreamRecs" //用户实时推荐表(区别于UserRecs表)
@@ -162,7 +162,7 @@ object StreamingRecommender {
 
         //step2: 从MongoDB中查询用户已看过的电影
         val ratingExist = ConnHelper.mongoClient(mongoConfig.db)(MONGODB_RATING_COLLECTION)
-                .find(MongoDBObject("uid" -> uid)) //相当于db.collection.find("uid" = uid)
+                .find(MongoDBObject("uid" -> uid)) //相当于db.collection.find({"uid":uid})
                 .toArray
                 .map {
                     item => item.get("mid").toString.toInt //只需要看过电影的mid
